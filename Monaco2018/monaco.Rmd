@@ -1,0 +1,148 @@
+---
+title: "Monacco Data Analysis"
+output: html_notebook
+---
+
+## Import the data and clean it
+```{r}
+# Load the packages
+library("jsonlite", lib.loc="~/anaconda3/lib/R/library")
+
+# Import the data in JSON format
+url = "http://ergast.com/api/f1/2018/6/laps.json?limit=2000"
+data <- fromJSON(url)
+
+# Get the laps from the data
+laps <- data[["MRData"]][["RaceTable"]][["Races"]][["Laps"]]
+
+# Get the times and positions from laps
+times_positions <- laps[[1]][["Timings"]]
+
+# Get the lap numbers
+lap_numbers <- laps[[1]][["number"]]
+lap_numbers <- as.numeric(lap_numbers)
+
+# Convert into a single data frame
+times_positions <- do.call("rbind", times_positions)
+
+# Load the stringr package
+library("stringr", lib.loc="~/anaconda3/lib/R/library")
+
+# Write a function which calculates the time column as an number
+time_numeric_seconds <- function(x){
+  
+  # Get the first character and convert to a time in seconds
+  minute <- as.numeric(str_sub(x, 1, 1))
+  
+  # Get the seconds and milliseconds
+  seconds <- as.numeric(str_sub(x, 3))
+  
+  # Find the time
+  time <- 60*minute + seconds
+}
+
+# Convert the time column into seconds in numeric form
+time_numeric <- sapply(times_positions$time, time_numeric_seconds)
+
+# Bind to the dataframe and drop the original column
+times_positions <- times_positions[,-3]
+times_positions <- cbind(times_positions, time = time_numeric)
+
+# Convert the position column to numeric
+times_positions$position <- as.numeric(times_positions$position)
+```
+
+## Visualisation
+### Prepare data and packages
+```{r}
+# Load the dplyr, tibble, and ggplot packages
+library("dplyr", lib.loc="~/anaconda3/lib/R/library")
+library("tibble", lib.loc="~/anaconda3/lib/R/library")
+library("ggplot2", lib.loc="~/anaconda3/lib/R/library")
+
+# Convert data.frame to tibble
+times_positions <- as_tibble(times_positions)
+
+# Add the lap numbers using dplyr
+times_positions_laps <- times_positions %>%
+ group_by(driverId) %>%
+ mutate(lap = row_number())
+
+# Find some lap statistics for all the drivers using dplyr
+lap_statistics <- times_positions_laps %>%
+  group_by(driverId) %>%
+  summarise(medianLapTime = median(time), slowestLapTime = max(time), fastestLapTime = min(time))
+```
+### Lap Times
+#### Bar Plots
+```{r}
+# Create a function to plot a bar chart with driverId on the y and variable on x
+plot_lap_statistics <- function(lap_statistics_df, colName){
+  ggplot(lap_statistics_df, aes(x = reorder(driverId, -lap_statistics_df[[colName]]), y = lap_statistics_df[[colName]])) + 
+    geom_col() + coord_flip() + labs(x = "driver", y = "time", title = colName)
+}
+
+# Plot the max, median and min lap times for each driver
+plot_lap_statistics(lap_statistics, "slowestLapTime")
+plot_lap_statistics(lap_statistics, "medianLapTime")
+plot_lap_statistics(lap_statistics, "fastestLapTime")
+```
+
+#### Point Plots
+```{r}
+# Try and plot all on one plot
+
+# Create a function to plot a bar chart with driverId on the y and variable on x
+plot_lap_statistics <- function(lap_statistics_df, colName){
+  ggplot(lap_statistics_df, aes(x = reorder(driverId, -lap_statistics_df[[colName]]), y = lap_statistics_df[[colName]])) + 
+    geom_point() + coord_flip() + labs(x = "driver", y = "time", title = colName)
+}
+
+# Plot the max, median and min lap times for each driver
+plot_lap_statistics(lap_statistics, "slowestLapTime")
+plot_lap_statistics(lap_statistics, "medianLapTime")
+plot_lap_statistics(lap_statistics, "fastestLapTime")
+```
+
+#### Point Plot
+```{r}
+# Load reshare to get our data in the correct format
+library("reshape2", lib.loc="~/anaconda3/lib/R/library")
+
+# Conver the data from wide format to long format using melt from reshape2
+lap_statistics2 <- melt(lap_statistics, id.vars = "driverId", measure.vars = c("fastestLapTime", "medianLapTime", "slowestLapTime"))
+
+# Rename the column names
+names(lap_statistics2) <- c("driverId", "lapMeasure", "time")
+
+lap_statistics2
+```
+
+```{r}
+# Get a sorted list of median laptimes for driverId
+
+# Remove the Slowest Lap Times
+lap_statistics3 <- lap_statistics2 %>%
+  filter(lapMeasure != "slowestLapTime") %>%
+  arrange(time)
+
+# Extract the driverId column for median lap times
+lap_statistics4 <- lap_statistics3 %>%
+  filter(lapMeasure == "medianLapTime") %>%
+  arrange(time)
+
+# Get a list of driverIds in reverse order
+driverIdMedian <- rev(lap_statistics4$driverId)
+```
+
+
+```{r}
+# Plot the data all on one point plot
+ggplot(lap_statistics3, aes(x = factor(lap_statistics3$driverId, levels = driverIdMedian), y = time, color = lapMeasure)) + 
+    geom_point() + coord_flip() + labs(x = "driver", y = "time", title = "Fastest and Median Lap Times", subtitle = "Monaco Grand Prix 2018") + 
+    scale_fill_discrete(name="Lap Measure",
+                         breaks=c("fastestLapTime", "medianLapTime"),
+                         labels=c("Fastest Lap Time", "Slowest Lap Time"))
+```
+```
+
