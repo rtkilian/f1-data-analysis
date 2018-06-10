@@ -144,5 +144,37 @@ ggplot(lap_statistics3, aes(x = factor(lap_statistics3$driverId, levels = driver
                          breaks=c("fastestLapTime", "medianLapTime"),
                          labels=c("Fastest Lap Time", "Slowest Lap Time"))
 ```
+
+#### Drivers
+Lets create a function that sorts the data by a vector of driverIds. After the dataframe is sorted then a density plot can be made with one plot for each driver.
+
+```{r}
+# Function to filter by drivers vector
+filterByDrivers <- function(.driverIds) {
+  df <- times_positions_laps %>%
+    filter(driverId %in% .driverIds)
+  return(df)
+}
+
+# Function to plot a histogram for the driver called
+plotDensityDriverTimes <- function(.driverIds) {
+  
+  # Filter by driver
+  df <- filterByDrivers(.driverIds)
+  
+  # Plot a histogram of lap times
+  ggplot(df, aes(x = time, colour = driverId)) + geom_density() + coord_cartesian(xlim=c(73, 110))
+}
+```
+
+
+##### Ricciardo, Vettel and Hamilton
+
+Lets see how the top 3 finishes compared. It looks like in general that Vettel had the most pace of the top 3 (mode of the density plot is furthest to the left). However, he was stuck behind Ricciardo for most of the race as shown in the similarity between their density plots. Lewis Hamilton was very consistent throughout the race (large mode), however, since he didn't have the outright pace, he couldn't challenge for the lead. 
+
+```{r}
+
+plotDensityDriverTimes(c("ricciardo", "vettel", "hamilton"))
+
 ```
 
